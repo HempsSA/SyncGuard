@@ -21,6 +21,10 @@ FreeFileSync is powerful, but running multiple sync jobs manually is tedious and
 - **Scan history** — Last 200 runs per job with CSV export
 - **System tray** — Minimizes to tray with status-colored icon; right-click to run all or quit
 - **Dark mode** — GitHub-dark-inspired UI with responsive scaling for different screen sizes
+- **Single instance** — Prevents multiple copies from running simultaneously
+- **Maximized on open** — Starts maximized; restores maximized from system tray
+- **Auto-minimize to tray** — Clicking minimize hides to tray automatically
+- **Lazy tab loading** — Only the active tab updates on job switch; others load on demand for instant switching
 
 ### Folder Guardian
 - **Real-time rename-deny** — Blocks any file renames and immediately reverts them
@@ -34,6 +38,12 @@ FreeFileSync is powerful, but running multiple sync jobs manually is tedious and
 - **Pre-sync snapshots** — Captures destination file manifest with SHA-256 hashes before each sync
 - **Post-sync validation** — Compares pre/post snapshots to detect hash mismatches and size anomalies
 - **Destination rollback** — CLI tool to list snapshots and analyze what needs restoring
+- **Same-source guard** — Prevents two jobs from scanning the same source path concurrently
+
+### FreeFileSync Exclude Setup
+- **GUI tool** — Browse and select `.ffs_batch`/`.ffs_gui` files, edit filters, preview and apply
+- **34 Windows exclusion filters** — System folders, temp files, thumbnails, shortcuts, logs, version control, and more
+- **CLI mode** — Scan directories recursively for batch files
 
 ## Quick Start
 
@@ -49,7 +59,8 @@ This will:
 1. Check for Git and Python
 2. Clone the repository to `C:\SyncGuard` (or a custom location)
 3. Install all Python dependencies
-4. Optionally launch SyncGuard
+4. Optionally create a desktop shortcut
+5. Optionally launch SyncGuard
 
 ```
 setup.bat D:\MyFolder\SyncGuard    # custom install location
@@ -136,12 +147,54 @@ Interactive selection:
 python -m syncguard.rollback --job "Job 1"
 ```
 
+### FreeFileSync Exclude Setup
+
+Add 34 Windows exclusion filters to your FreeFileSync batch files:
+
+**GUI mode** (default):
+```bash
+python ffs_exclude_setup.py
+```
+
+- Click **Browse Files...** to select `.ffs_batch`/`.ffs_gui` files
+- Click **Scan Folder...** to recursively find all config files
+- Edit the filter list in the text area
+- Click **Preview** to see what would change, then **Apply Filters** to write
+
+**CLI mode:**
+```bash
+# Scan current directory
+python ffs_exclude_setup.py --cli
+
+# Scan a specific directory
+python ffs_exclude_setup.py --cli "D:\MyBackups"
+
+# Create a new template batch file
+python ffs_exclude_setup.py --cli --create sync.ffs_batch "C:\Source" "D:\Target"
+
+# Preview without writing
+python ffs_exclude_setup.py --cli --dry-run "D:\Sync"
+```
+
+**Filters included:**
+
+| Category | Patterns |
+|----------|----------|
+| System folders | `System Volume Information`, `$Recycle.Bin`, `RECYCLER`, `Recovery`, `WinSxS`, `SoftwareDistribution`, `Installer` |
+| Temp/cache | `*.tmp`, `*.temp`, `~$*`, `~*.*`, `thumbs.db`, `desktop.ini` |
+| Logs | `*.log`, `*.etl`, `*.evtx` |
+| Shortcuts | `*.lnk` |
+| Version control | `.git`, `.svn`, `.hg` |
+| Cross-platform | `.DS_Store`, `._*`, `__MACOSX`, `.Trash-*`, `.cache` |
+| Browser cache | `Cache`, `cache2`, `Service Worker` |
+| SyncGuard | `syncguard_cache` |
+
 ## Architecture
 
 ```
 syncguard/
 ├── __init__.py        # Package version
-├── __main__.py        # Entry point, dependency bootstrap
+├── __main__.py        # Entry point, dependency bootstrap, single-instance lock
 ├── constants.py       # Paths, colour palette, diagnostics
 ├── persistence.py     # Atomic JSON writes, corruption recovery, data models
 ├── scanner.py         # Windows-native dir listing, parallel scanner, change guard
@@ -150,6 +203,10 @@ syncguard/
 ├── snapshot.py        # Destination manifest capture and comparison
 ├── rollback.py        # CLI for destination rollback
 └── app.py             # CustomTkinter GUI, scheduler, tray integration
+
+ffs_exclude_setup.py  # FreeFileSync exclude filter tool (GUI + CLI)
+SyncGuard.pyw         # Windowless launcher (double-click to run)
+setup.bat             # Windows installer
 ```
 
 ## Configuration
