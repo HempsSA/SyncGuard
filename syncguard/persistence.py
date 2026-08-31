@@ -98,6 +98,15 @@ class JobConfig:
     guardian_folder:    str       = ""
     guardian_auto_pause: bool     = False
 
+    # Ransomware protection
+    destination_path:          str       = ""
+    ransomware_protection:     bool      = True
+    entropy_threshold:         float     = 7.5
+    snapshot_before_sync:      bool      = True
+    max_snapshots:             int       = 3
+    custom_extensions:         List[str] = field(default_factory=list)
+    anomaly_block_score:       float     = 60.0
+
     def to_dict(self):
         return asdict(self)
 

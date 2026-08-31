@@ -209,3 +209,7 @@ class _GuardianState:
     paused:          bool            = False
     auto_paused:     bool            = False
     auto_job_id:     Optional[str]   = None
+    # Destination protection
+    dest_folder:     str             = ""
+    dest_observer:   Optional[object] = None
+    dest_paused:     bool            = False  # paused during FFS sync

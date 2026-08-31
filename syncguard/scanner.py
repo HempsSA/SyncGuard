@@ -16,6 +16,12 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from .persistence import ScanCache, JobConfig
+from .ransomware import (
+    sample_entropy, detect_suspicious_extensions, compute_anomaly_score,
+)
+from .snapshot import (
+    capture_manifest, save_snapshot, compare_snapshots, load_snapshot,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -584,6 +590,8 @@ class ChangeGuard:
         self._last_total = 0
         self._last_changed = 0
         self._last_pct = 0.0
+        self._last_anomaly = None
+        self._pre_snapshot = None
         self._log("=== Job: " + self.job.name + " ===")
         try:
             result = self.scan()
@@ -623,6 +631,21 @@ class ChangeGuard:
                 "WARN")
             return "WARN"
 
+        # --- Ransomware pre-sync checks ---
+        if self.job.ransomware_protection and changed > 0:
+            anomaly = self._run_ransomware_checks(
+                result["new_files"], total, changed, deleted=0)
+            self._last_anomaly = anomaly
+            if anomaly.is_blocked:
+                self._log(
+                    "RANSOMWARE ALERT: anomaly score " +
+                    str(anomaly.score) + "/100  BLOCKED",
+                    "ERROR")
+                for reason in anomaly.reasons:
+                    self._log("  > " + reason, "ERROR")
+                return "ABORTED"
+
+        # --- Threshold gate (original logic) ---
         if pct > self.job.threshold:
             self._log(
                 "THRESHOLD EXCEEDED: " + str(pct) + "% changed - limit is " +
@@ -650,6 +673,13 @@ class ChangeGuard:
                 "ERROR")
             return "ERROR"
 
+        # --- Pre-sync destination snapshot ---
+        dest = self.job.destination_path
+        if (self.job.ransomware_protection and
+                self.job.snapshot_before_sync and dest):
+            self._pre_snapshot = self._capture_dest_snapshot(dest)
+
+        # --- Launch FreeFileSync ---
         try:
             proc = subprocess.run(
                 [self.job.ffs_exe, self.job.batch_file],
@@ -664,6 +694,11 @@ class ChangeGuard:
                 ("FreeFileSync exited with code " +
                  str(proc.returncode) + ".", "ERROR"))
             self._log(msg, lvl)
+
+            # --- Post-sync validation ---
+            if (self.job.ransomware_protection and
+                    dest and proc.returncode in (0, 1)):
+                self._post_sync_validate(dest)
 
             if proc.returncode in (0, 1):
                 try:
@@ -687,3 +722,96 @@ class ChangeGuard:
                 "Failed to launch FreeFileSync: " + str(exc) +
                 ". Trusted cache retained.", "ERROR")
             return "ERROR"
+
+    # ------------------------------------------------------------------- # Ransomware protection helpers
+    # -------------------------------------------------------------------
+
+    def _run_ransomware_checks(self, new_files, total, changed,
+                               deleted=0):
+        """Run entropy, extension, and anomaly checks. Return score."""
+        # 1. Entropy sampling on changed files
+        changed_paths = list(new_files.keys())[:changed]
+        ent_result = sample_entropy(
+            changed_paths,
+            threshold=self.job.entropy_threshold)
+        if ent_result.sampled > 0:
+            self._log(
+                "Entropy check: sampled " + str(ent_result.sampled) +
+                " files, avg=" + str(ent_result.avg_entropy) +
+                ", max=" + str(ent_result.max_entropy) +
+                ", high=" + str(ent_result.high_entropy))
+            if ent_result.is_suspicious:
+                self._log(
+                    "Entropy ALERT: " + str(ent_result.high_entropy) +
+                    "/" + str(ent_result.sampled) +
+                    " files have suspicious entropy", "WARN")
+
+        # 2. Extension anomaly detection
+        ext_result = detect_suspicious_extensions(
+            changed_paths,
+            extra_blocklist=set(self.job.custom_extensions))
+        if ext_result.suspicious > 0:
+            self._log(
+                "Extension check: " + str(ext_result.suspicious) +
+                "/" + str(ext_result.total_changed) +
+                " suspicious extensions", "WARN")
+            for ext, count in ext_result.suspicious_exts.items():
+                self._log(
+                    "  > " + ext + ": " + str(count) + " files",
+                    "WARN")
+
+        # 3. Composite anomaly score
+        score = compute_anomaly_score(
+            change_pct=self.job.threshold * changed / total * 100 / max(self.job.threshold, 1),
+            total_files=total,
+            changed_files=changed,
+            deleted_files=deleted,
+            entropy_result=ent_result,
+            extension_result=ext_result,
+            block_threshold=self.job.anomaly_block_score)
+        self._log(
+            "Anomaly score: " + str(score.score) +
+            "/100 (block threshold: " +
+            str(self.job.anomaly_block_score) + ")")
+        return score
+
+    def _capture_dest_snapshot(self, dest_path):
+        """Capture destination manifest before sync."""
+        self._log("Snapshot: capturing destination manifest...")
+        manifest = capture_manifest(
+            dest_path, self.job.job_id, log_cb=self._log)
+        if manifest:
+            fp = save_snapshot(manifest)
+            self._log(
+                "Snapshot saved: " + str(fp.name) +
+                " (" + str(manifest.total_files) + " files)")
+        return manifest
+
+    def _post_sync_validate(self, dest_path):
+        """Validate destination integrity after sync."""
+        if self._pre_snapshot is None:
+            return
+        self._log("Post-sync validation: checking destination...")
+        post = capture_manifest(
+            dest_path, self.job.job_id, log_cb=self._log)
+        if post is None:
+            self._log(
+                "Post-sync validation: could not read destination",
+                "WARN")
+            return
+        diff = compare_snapshots(self._pre_snapshot, post)
+        if diff.is_clean:
+            self._log("Post-sync validation: OK - " + diff.summary)
+        else:
+            self._log(
+                "Post-sync ANOMALY: " + diff.summary, "ERROR")
+            if diff.hash_mismatch:
+                self._log(
+                    "  Hash mismatches (possible corruption):", "ERROR")
+                for f in diff.hash_mismatch[:5]:
+                    self._log("    - " + f, "ERROR")
+            if diff.size_anomaly:
+                self._log(
+                    "  Size anomalies (possible truncation):", "ERROR")
+                for f in diff.size_anomaly[:5]:
+                    self._log("    - " + f, "ERROR")

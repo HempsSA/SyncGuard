@@ -796,11 +796,13 @@ class SyncGuardApp(ctk.CTk):
         self.tabs.add("Schedule")
         self.tabs.add("History")
         self.tabs.add("Guardian")
+        self.tabs.add("Ransomware")
 
         self._build_config_tab(self.tabs.tab("Config"))
         self._build_schedule_tab(self.tabs.tab("Schedule"))
         self._build_history_tab(self.tabs.tab("History"))
         self._build_guardian_tab(self.tabs.tab("Guardian"))
+        self._build_ransomware_tab(self.tabs.tab("Ransomware"))
 
     def _build_config_tab(self, tab):
         s = self._scale
@@ -1080,6 +1082,7 @@ class SyncGuardApp(ctk.CTk):
             text="Full rescan mode  (every job run)")
         self._clear_history_display()
         self._load_guardian_into_tab(job)
+        self._load_ransomware_into_tab(job)
 
     def _deferred_load(self, job: JobConfig):
         """
@@ -1136,6 +1139,13 @@ class SyncGuardApp(ctk.CTk):
             self.store.jobs[self.selected_index].job_id
             if self.selected_index is not None
             else uuid.uuid4().hex)
+        # Ransomware settings from tab
+        rw = {}
+        if hasattr(self, "rw_enabled_sw"):
+            try:
+                rw = self._collect_ransomware_from_tab()
+            except Exception:
+                pass
         return JobConfig(
             job_id             = current_id,
             name               = (self.e_name.get().strip()
@@ -1152,6 +1162,14 @@ class SyncGuardApp(ctk.CTk):
             enabled            = bool(self.enabled_sw.get()),
             guardian_folder    = gdn_folder,
             guardian_auto_pause = gdn_auto_pause,
+            # Ransomware protection
+            destination_path       = rw.get("destination_path", ""),
+            ransomware_protection  = rw.get("ransomware_protection", True),
+            entropy_threshold      = rw.get("entropy_threshold", 7.5),
+            snapshot_before_sync   = rw.get("snapshot_before_sync", True),
+            max_snapshots          = 3,
+            custom_extensions      = rw.get("custom_extensions", []),
+            anomaly_block_score    = rw.get("anomaly_block_score", 60),
         )
 
     # -------------------------------------------------------------------
@@ -1351,6 +1369,208 @@ class SyncGuardApp(ctk.CTk):
                 "Restore via FreeFileSync."),
                size=_sc(9, s), color=C_MUTED, justify="left").pack(
             anchor="w")
+
+    # -------------------------------------------------------------------
+    # Ransomware protection tab
+    # -------------------------------------------------------------------
+
+    def _build_ransomware_tab(self, tab):
+        s = self._scale
+        tab.configure(fg_color="transparent")
+
+        scroll = ctk.CTkScrollableFrame(
+            tab, fg_color="transparent", corner_radius=0)
+        scroll.pack(fill="both", expand=True, padx=2, pady=2)
+
+        lbl_w = _sc(140, s)
+        row_h = _sc(28, s)
+        pad_y = _sc(3, s)
+
+        _label(scroll, "Ransomware Protection",
+               size=_sc(12, s), weight="bold").pack(
+            anchor="w", pady=(4, 2))
+        _label(scroll,
+               ("Entropy + extension + anomaly scoring to detect "
+                "and block ransomware before sync."),
+               size=_sc(9, s), color=C_MUTED).pack(
+            anchor="w", pady=(0, _sc(8, s)))
+
+        # Enable toggle
+        sw_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        sw_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(sw_row, text="Enable Protection",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.rw_enabled_sw = ctk.CTkSwitch(
+            sw_row, text="", progress_color=C_ACCENT,
+            button_color=C_TEXT, button_hover_color=C_MUTED)
+        self.rw_enabled_sw.pack(side="left")
+        self.rw_enabled_sw.select()
+
+        # Destination path
+        dest_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        dest_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(dest_row, text="Destination Path",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.rw_dest_entry = _entry(dest_row, height=row_h)
+        self.rw_dest_entry.pack(side="left", fill="x", expand=True)
+
+        def _browse_dest():
+            p = filedialog.askdirectory()
+            if p:
+                self.rw_dest_entry.delete(0, "end")
+                self.rw_dest_entry.insert(0, p)
+
+        ctk.CTkButton(
+            dest_row, text="...", width=_sc(30, s), height=row_h,
+            fg_color=C_CARD, border_color=C_BORDER, border_width=1,
+            text_color=C_TEXT, hover_color=C_BORDER,
+            command=_browse_dest).pack(side="left", padx=(3, 0))
+
+        # Snapshot toggle
+        snap_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        snap_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(snap_row, text="Pre-Sync Snapshot",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.rw_snapshot_sw = ctk.CTkSwitch(
+            snap_row, text="", progress_color=C_ACCENT,
+            button_color=C_TEXT, button_hover_color=C_MUTED)
+        self.rw_snapshot_sw.pack(side="left")
+        self.rw_snapshot_sw.select()
+
+        _label(snap_row,
+               "  Capture destination manifest before each sync",
+               size=_sc(9, s), color=C_MUTED).pack(side="left")
+
+        # Entropy threshold slider
+        ent_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        ent_row.pack(fill="x", pady=_sc(5, s))
+        ctk.CTkLabel(ent_row, text="Entropy Threshold",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.rw_entropy_lbl = ctk.CTkLabel(
+            ent_row, text="7.5", width=_sc(50, s),
+            font=(None, _sc(11, s), "bold"), text_color=C_ACCENT)
+        self.rw_entropy_lbl.pack(side="right")
+        self.rw_entropy_slider = ctk.CTkSlider(
+            ent_row, from_=6.0, to=8.0,
+            fg_color=C_CARD, progress_color=C_ACCENT,
+            button_color=C_ACCENT,
+            button_hover_color=_darken(C_ACCENT),
+            command=self._on_entropy)
+        self.rw_entropy_slider.pack(
+            side="left", fill="x", expand=True, padx=_sc(6, s))
+        self.rw_entropy_slider.set(7.5)
+
+        _label(ent_row, "",
+               size=_sc(9, s), color=C_MUTED).pack(side="left")
+
+        # Anomaly block score slider
+        score_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        score_row.pack(fill="x", pady=_sc(5, s))
+        ctk.CTkLabel(score_row, text="Block Score",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.rw_score_lbl = ctk.CTkLabel(
+            score_row, text="60", width=_sc(50, s),
+            font=(None, _sc(11, s), "bold"), text_color=C_ACCENT)
+        self.rw_score_lbl.pack(side="right")
+        self.rw_score_slider = ctk.CTkSlider(
+            score_row, from_=30, to=90,
+            fg_color=C_CARD, progress_color=C_ACCENT,
+            button_color=C_ACCENT,
+            button_hover_color=_darken(C_ACCENT),
+            command=self._on_block_score)
+        self.rw_score_slider.pack(
+            side="left", fill="x", expand=True, padx=_sc(6, s))
+        self.rw_score_slider.set(60)
+
+        # Custom extensions
+        ctk.CTkFrame(scroll, fg_color=C_BORDER, height=1).pack(
+            fill="x", pady=_sc(6, s))
+        _label(scroll, "Custom Suspicious Extensions",
+               size=_sc(11, s), weight="bold").pack(
+            anchor="w")
+        _label(scroll,
+               "  (one per line, e.g. .mylock - added to built-in list)",
+               size=_sc(9, s), color=C_MUTED).pack(
+            anchor="w", pady=(0, _sc(3, s)))
+        self.rw_extensions = ctk.CTkTextbox(
+            scroll, height=_sc(50, s), fg_color=C_CARD,
+            border_color=C_BORDER, border_width=1,
+            text_color=C_TEXT, font=("Consolas", _sc(10, s)))
+        self.rw_extensions.pack(fill="x", pady=(_sc(4, s), 0))
+
+        # Info box
+        ctk.CTkFrame(scroll, fg_color=C_BORDER, height=1).pack(
+            fill="x", pady=_sc(6, s))
+        _label(scroll,
+               ("Shield: blocks sync if anomaly score > threshold.\n"
+                "  - Entropy: detects encrypted file content\n"
+                "  - Extensions: detects ransomware naming patterns\n"
+                "  - Deletion ratio: detects mass file deletion\n"
+                "  - Rename ratio: detects mass file renaming\n\n"
+                "  Score weights: change=40%, entropy=25pts, "
+                "ext=20pts, del=15pts, rename=10pts"),
+               size=_sc(9, s), color=C_MUTED, justify="left").pack(
+            anchor="w", pady=(0, _sc(8, s)))
+
+        # Snapshots info
+        self.rw_snap_info = _label(
+            scroll, "Snapshots: none yet",
+            size=_sc(10, s), color=C_MUTED)
+        self.rw_snap_info.pack(anchor="w")
+
+    def _on_entropy(self, val):
+        self.rw_entropy_lbl.configure(text=str(round(val, 1)))
+
+    def _on_block_score(self, val):
+        self.rw_score_lbl.configure(text=str(int(val)))
+
+    def _load_ransomware_into_tab(self, job):
+        """Populate ransomware tab fields when a job is selected."""
+        try:
+            if job.ransomware_protection:
+                self.rw_enabled_sw.select()
+            else:
+                self.rw_enabled_sw.deselect()
+            self.rw_dest_entry.delete(0, "end")
+            self.rw_dest_entry.insert(0, job.destination_path)
+            if job.snapshot_before_sync:
+                self.rw_snapshot_sw.select()
+            else:
+                self.rw_snapshot_sw.deselect()
+            self.rw_entropy_slider.set(job.entropy_threshold)
+            self.rw_entropy_lbl.configure(
+                text=str(job.entropy_threshold))
+            self.rw_score_slider.set(job.anomaly_block_score)
+            self.rw_score_lbl.configure(
+                text=str(int(job.anomaly_block_score)))
+            self.rw_extensions.delete("1.0", "end")
+            self.rw_extensions.insert(
+                "1.0", "\n".join(job.custom_extensions))
+        except Exception:
+            pass
+
+    def _collect_ransomware_from_tab(self):
+        """Read ransomware settings from the tab widgets."""
+        raw = self.rw_extensions.get("1.0", "end").strip()
+        exts = [p.strip() for p in raw.splitlines() if p.strip()]
+        return {
+            "ransomware_protection": bool(self.rw_enabled_sw.get()),
+            "destination_path": self.rw_dest_entry.get().strip(),
+            "snapshot_before_sync": bool(self.rw_snapshot_sw.get()),
+            "entropy_threshold": round(self.rw_entropy_slider.get(), 1),
+            "anomaly_block_score": int(self.rw_score_slider.get()),
+            "custom_extensions": exts,
+        }
 
     # -------------------------------------------------------------------
     # Guardian actions
