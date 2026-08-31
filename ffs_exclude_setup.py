@@ -296,12 +296,13 @@ def launch_gui():
     root = tk.Tk()
     root.title("FreeFileSync Exclude Filter Setup")
     root.configure(bg=C_BG)
-    root.minsize(820, 640)
+    root.minsize(600, 400)
 
-    # Centre on screen
+    # Centre on screen — use 80% of screen size
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
-    w, h = 860, 680
+    w = min(860, int(sw * 0.8))
+    h = min(680, int(sh * 0.8))
     root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
     style = ttk.Style(root)
@@ -344,8 +345,41 @@ def launch_gui():
     selected_files = []
     custom_filters = list(WINDOWS_EXCLUDES)
 
-    # -- Layout --
-    header = ttk.Frame(root)
+    # ── Fixed bottom bar (always visible) ────────────────────────
+    btn_frame = ttk.Frame(root)
+    btn_frame.pack(fill="x", side="bottom", padx=20, pady=(4, 16))
+
+    # -- Status bar --
+    status_frame = ttk.Frame(root)
+    status_frame.pack(fill="x", side="bottom")
+    ttk.Label(status_frame,
+              text="Select .ffs_batch or .ffs_gui files, edit filters, then click Apply",
+              style="Sub.TLabel").pack(padx=20, pady=(0, 4), anchor="w")
+
+    # ── Scrollable content area ──────────────────────────────────
+    canvas = tk.Canvas(root, bg=C_BG, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+    scroll_frame = ttk.Frame(canvas)
+
+    scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas_window = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    # Make scroll_frame width match canvas width
+    def _on_canvas_configure(event):
+        canvas.itemconfig(canvas_window, width=event.width)
+    canvas.bind("<Configure>", _on_canvas_configure)
+
+    # Mouse wheel scrolling
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+    scrollbar.pack(side="right", fill="y")
+    canvas.pack(side="top", fill="both", expand=True)
+
+    # -- Header inside scroll area --
+    header = ttk.Frame(scroll_frame)
     header.pack(fill="x", padx=20, pady=(16, 4))
     ttk.Label(header, text="FreeFileSync Exclude Setup",
               style="Header.TLabel").pack(side="left")
@@ -353,7 +387,7 @@ def launch_gui():
               style="Sub.TLabel").pack(side="right", pady=(6, 0))
 
     # -- File selection area --
-    file_frame = ttk.Frame(root)
+    file_frame = ttk.Frame(scroll_frame)
     file_frame.pack(fill="x", padx=20, pady=(8, 4))
 
     btn_row = ttk.Frame(file_frame)
@@ -413,11 +447,11 @@ def launch_gui():
     file_tree.column("path", width=600, minwidth=300)
     file_tree.column("status", width=140, minwidth=100, anchor="center")
 
-    scrollbar = ttk.Scrollbar(file_tree_frame, orient="vertical",
+    scrollbar_tree = ttk.Scrollbar(file_tree_frame, orient="vertical",
                                command=file_tree.yview)
-    file_tree.configure(yscrollcommand=scrollbar.set)
+    file_tree.configure(yscrollcommand=scrollbar_tree.set)
     file_tree.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
+    scrollbar_tree.pack(side="right", fill="y")
 
     def _refresh_file_list():
         for item in file_tree.get_children():
@@ -431,8 +465,8 @@ def launch_gui():
     file_count_label.pack(anchor="w", pady=(4, 0))
 
     # -- Filter editor --
-    filter_frame = ttk.Frame(root)
-    filter_frame.pack(fill="both", expand=True, padx=20, pady=(4, 4))
+    filter_frame = ttk.Frame(scroll_frame)
+    filter_frame.pack(fill="both", padx=20, pady=(4, 4))
 
     ttk.Label(filter_frame, text="Exclude Filters",
               font=("Segoe UI", 11, "bold"), foreground=C_TEXT,
@@ -479,7 +513,7 @@ def launch_gui():
                    anchor="w", pady=(4, 0))
 
     # -- Log area --
-    log_frame = ttk.Frame(root)
+    log_frame = ttk.Frame(scroll_frame)
     log_frame.pack(fill="x", padx=20, pady=(4, 4))
 
     ttk.Label(log_frame, text="Output",
@@ -506,10 +540,6 @@ def launch_gui():
     log_box.tag_configure("warn", foreground=C_WARN)
     log_box.tag_configure("err", foreground=C_ERR)
     log_box.tag_configure("info", foreground=C_MUTED)
-
-    # -- Action buttons --
-    btn_frame = ttk.Frame(root)
-    btn_frame.pack(fill="x", padx=20, pady=(4, 16))
 
     def _apply_filters(dry_run=False):
         files = list(selected_files)
@@ -584,13 +614,6 @@ def launch_gui():
                command=_preview).pack(side="left", padx=(0, 8))
     ttk.Button(btn_frame, text="Apply Filters", style="Accent.TButton",
                command=_apply_now).pack(side="left")
-
-    # -- Status bar --
-    status_frame = ttk.Frame(root)
-    status_frame.pack(fill="x", side="bottom")
-    ttk.Label(status_frame,
-              text="Select .ffs_batch or .ffs_gui files, edit filters, then click Apply",
-              style="Sub.TLabel").pack(padx=20, pady=(0, 8), anchor="w")
 
     root.mainloop()
 
