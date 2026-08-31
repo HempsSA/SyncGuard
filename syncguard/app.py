@@ -1554,8 +1554,13 @@ class SyncGuardApp(ctk.CTk):
             self.rw_score_lbl.configure(
                 text=str(int(job.anomaly_block_score)))
             self.rw_extensions.delete("1.0", "end")
+            if job.custom_extensions:
+                exts = job.custom_extensions
+            else:
+                from syncguard.ransomware import SUSPICIOUS_EXTENSIONS
+                exts = sorted(SUSPICIOUS_EXTENSIONS)
             self.rw_extensions.insert(
-                "1.0", "\n".join(job.custom_extensions))
+                "1.0", "\n".join(exts))
         except Exception:
             pass
 
