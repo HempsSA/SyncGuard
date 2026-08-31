@@ -707,6 +707,12 @@ class SyncGuardApp(ctk.CTk):
             self._show_no_selection()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.bind("<Iconify>", self._on_minimize)
+
+        # Start maximized — need after() so the window is mapped first
+        self.after(0, lambda: self.state("zoomed"))
+        # Build tray icon in background so it doesn't block startup
+        self.after(100, self._build_tray_icon)
 
     # -------------------------------------------------------------------
     # UI Build
@@ -1927,7 +1933,7 @@ class SyncGuardApp(ctk.CTk):
                     self.after_cancel(state.auto_job_id)
                 if state.observer:
                     state.observer.stop()
-                    state.observer.join(timeout=1.0)
+                    state.observer.join(timeout=0.25)
                 if state.rename_reverter:
                     state.rename_reverter.stop()
                 if state.deletion_guard:
@@ -2654,7 +2660,7 @@ class SyncGuardApp(ctk.CTk):
         self.deiconify()
         self.lift()
         self.focus_force()
-        self.state("normal")
+        self.state("zoomed")
 
     def _on_minimize(self, event=None):
         if self.state() == "iconic":
@@ -2694,4 +2700,4 @@ class SyncGuardApp(ctk.CTk):
                 self._tray.stop()
             except Exception:
                 pass
-        self.after(0, self.destroy)
+        self.destroy()
