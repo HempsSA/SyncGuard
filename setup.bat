@@ -20,169 +20,150 @@ echo.
 
 :: ── Check for Git ──────────────────────────────────────────────
 where git >nul 2>&1
-if errorlevel 1 (
-    echo [!] Git is not installed.
-    echo.
-    set /p "INSTALL_GIT= Install Git automatically? (Y/N): "
-    if /i not "!INSTALL_GIT!"=="Y" (
-        echo [X] Git is required. Download from: https://git-scm.com/download/win
-        echo     During install, select "Add to PATH".
-        exit /b 1
-    )
-    echo.
-    echo [v] Downloading Git for Windows...
-    set "GIT_INSTALLER=%TEMP%\git_installer.exe"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "try { " ^
-        "  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; " ^
-        "  Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe' -OutFile '%GIT_INSTALLER%' -UseBasicParsing; " ^
-        "  Write-Host 'Download complete.' " ^
-        "} catch { " ^
-        "  Write-Host 'Download failed:' $_.Exception.Message; " ^
-        "  exit 1 " ^
-        "}"
-    if not exist "%GIT_INSTALLER%" (
-        echo [X] Download failed. Please install Git manually from: https://git-scm.com/download/win
-        exit /b 1
-    )
-    echo [v] Installing Git (silent)...
-    "%GIT_INSTALLER%" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS="icons,ext\reg\shellhere,assoc,assoc_sh"
-    if errorlevel 1 (
-        echo [X] Git installation failed. Please install Git manually.
-        del "%GIT_INSTALLER%" 2>nul
-        exit /b 1
-    )
-    del "%GIT_INSTALLER%" 2>nul
-    echo [i] Git installed successfully.
-    echo.
-    echo [!] IMPORTANT: You may need to restart this script for Git to be in PATH.
-    echo     If "git" is not recognized, close and re-open this window, then run setup.bat again.
-    echo.
+if not errorlevel 1 goto :git_ok
 
-    :: Refresh PATH from registry so git is available in this session
-    set "PATH=%PATH%;C:\Program Files\Git\cmd;C:\Program Files (x86)\Git\cmd"
-
-    :: Verify git is now accessible
-    where git >nul 2>&1
-    if errorlevel 1 (
-        echo [!] Git installed but not yet in PATH.
-        echo     Please restart this script after closing this window.
-        exit /b 1
-    )
+echo [!] Git is not installed.
+echo.
+set /p "INSTALL_GIT= Install Git automatically? [Y/N]: "
+if /i not "!INSTALL_GIT!"=="Y" goto :no_git
+echo.
+echo [v] Downloading Git for Windows...
+set "GIT_INSTALLER=%TEMP%\git_installer.exe"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe' -OutFile '%GIT_INSTALLER%' -UseBasicParsing"
+if not exist "%GIT_INSTALLER%" (
+    echo [X] Download failed. Install Git manually from: https://git-scm.com/download/win
+    exit /b 1
 )
+echo [v] Installing Git (silent)...
+"%GIT_INSTALLER%" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS
+if errorlevel 1 (
+    echo [X] Git installation failed. Install Git manually.
+    del "%GIT_INSTALLER%" 2>nul
+    exit /b 1
+)
+del "%GIT_INSTALLER%" 2>nul
+echo [i] Git installed successfully.
+echo.
+echo [!] You may need to restart this script for Git to be in PATH.
+echo     If "git" is not recognized, close this window and run setup.bat again.
+echo.
+set "PATH=%PATH%;C:\Program Files\Git\cmd;C:\Program Files (x86)\Git\cmd"
+where git >nul 2>&1
+if errorlevel 1 (
+    echo [!] Git installed but not yet in PATH. Please restart this script.
+    exit /b 1
+)
+
+:git_ok
 echo [i] Git found: OK
 
 :: ── Check for Python ───────────────────────────────────────────
 where python >nul 2>&1
-if errorlevel 1 (
-    where python3 >nul 2>&1
-    if errorlevel 1 (
-        echo.
-        echo [!] Python is not installed.
-        echo.
-        set /p "INSTALL_PY= Install Python automatically? (Y/N): "
-        if /i not "!INSTALL_PY!"=="Y" (
-            echo [X] Python is required. Download from: https://www.python.org/downloads/
-            echo     During install, check "Add Python to PATH".
-            exit /b 1
-        )
-        echo.
-        echo [v] Downloading Python...
-        set "PY_INSTALLER=%TEMP%\python_installer.exe"
-        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-            "try { " ^
-            "  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; " ^
-            "  Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.13.1/python-3.13.1-amd64.exe' -OutFile '%PY_INSTALLER%' -UseBasicParsing; " ^
-            "  Write-Host 'Download complete.' " ^
-            "} catch { " ^
-            "  Write-Host 'Download failed:' $_.Exception.Message; " ^
-            "  exit 1 " ^
-            "}"
-        if not exist "%PY_INSTALLER%" (
-            echo [X] Download failed. Please install Python manually from: https://www.python.org/downloads/
-            exit /b 1
-        )
-        echo [v] Installing Python (silent)...
-        "%PY_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_test=0
-        if errorlevel 1 (
-            echo [X] Python installation failed. Please install Python manually.
-            del "%PY_INSTALLER%" 2>nul
-            exit /b 1
-        )
-        del "%PY_INSTALLER%" 2>nul
-        echo [i] Python installed successfully.
-        echo.
-        echo [!] IMPORTANT: You may need to restart this script for Python to be in PATH.
-        echo     If "python" is not recognized, close and re-open this window, then run setup.bat again.
-        echo.
-
-        :: Refresh PATH
-        set "PATH=%PATH%;C:\Python313;C:\Python313\Scripts;C:\Program Files\Python313;C:\Program Files (x86)\Python313"
-
-        where python >nul 2>&1
-        if errorlevel 1 (
-            echo [!] Python installed but not yet in PATH.
-            echo     Please restart this script after closing this window.
-            exit /b 1
-        )
-    )
+if not errorlevel 1 goto :python_ok
+where python3 >nul 2>&1
+if not errorlevel 1 (
     set "PYTHON=python3"
-) else (
-    set "PYTHON=python"
+    goto :python_ok
 )
+
+echo.
+echo [!] Python is not installed.
+echo.
+set /p "INSTALL_PY= Install Python automatically? [Y/N]: "
+if /i not "!INSTALL_PY!"=="Y" goto :no_py
+echo.
+echo [v] Downloading Python...
+set "PY_INSTALLER=%TEMP%\python_installer.exe"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.13.1/python-3.13.1-amd64.exe' -OutFile '%PY_INSTALLER%' -UseBasicParsing"
+if not exist "%PY_INSTALLER%" (
+    echo [X] Download failed. Install Python manually from: https://www.python.org/downloads/
+    exit /b 1
+)
+echo [v] Installing Python (silent)...
+"%PY_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_test=0
+if errorlevel 1 (
+    echo [X] Python installation failed. Install Python manually.
+    del "%PY_INSTALLER%" 2>nul
+    exit /b 1
+)
+del "%PY_INSTALLER%" 2>nul
+echo [i] Python installed successfully.
+echo.
+echo [!] You may need to restart this script for Python to be in PATH.
+echo     If "python" is not recognized, close this window and run setup.bat again.
+echo.
+set "PATH=%PATH%;C:\Python313;C:\Python313\Scripts;C:\Program Files\Python313;C:\Program Files (x86)\Python313"
+where python >nul 2>&1
+if errorlevel 1 (
+    echo [!] Python installed but not yet in PATH. Please restart this script.
+    exit /b 1
+)
+set "PYTHON=python"
+goto :python_ok
+
+:no_py
+echo [X] Python is required. Download from: https://www.python.org/downloads/
+exit /b 1
+
+:no_git
+echo [X] Git is required. Download from: https://git-scm.com/download/win
+exit /b 1
+
+:python_ok
+if not defined PYTHON set "PYTHON=python"
 echo [i] Python found: OK
 
 :: Show Python version
 for /f "tokens=*" %%v in ('%PYTHON% --version 2^>^&1') do set "PYVER=%%v"
 echo [i] %PYVER%
 
-:: Locate pythonw.exe (suppresses console window)
-set "PYTHONW=%PYTHON%"
+:: Locate pythonw.exe
+set "PYTHONW="
 for /f "tokens=*" %%w in ('where pythonw 2^>nul') do (
     if not defined PYTHONW set "PYTHONW=%%w"
 )
-if "%PYTHONW%"=="%PYTHON%" (
-    set "PYTHONW=%PYTHON:python=pythonw%"
-)
+if not defined PYTHONW set "PYTHONW=%PYTHON%"
 echo.
 
 :: ── Check if folder already has a git repo ─────────────────────
-if exist "%INSTALL_DIR%\.git" (
-    echo [!] %INSTALL_DIR% already contains a SyncGuard git repository.
-    echo.
-    set /p "CHOICE= Run update instead? (Y/N): "
-    if /i "!CHOICE!"=="Y" (
-        cd /d "%INSTALL_DIR%"
-        echo.
-        echo [v] Pulling latest changes...
-        git pull origin main
-        if errorlevel 1 (
-            echo [X] Update failed. Check for local conflicts.
-            exit /b 1
-        )
-        goto :install_deps
-    )
+if not exist "%INSTALL_DIR%\.git" goto :not_a_repo
+echo [!] %INSTALL_DIR% already contains a SyncGuard git repository.
+echo.
+set /p "CHOICE= Run update instead? [Y/N]: "
+if /i not "!CHOICE!"=="Y" (
     echo [i] Skipping clone.
     goto :install_deps
 )
+cd /d "%INSTALL_DIR%"
+echo.
+echo [v] Pulling latest changes...
+git pull origin main
+if errorlevel 1 (
+    echo [X] Update failed. Check for local conflicts.
+    exit /b 1
+)
+goto :install_deps
 
+:not_a_repo
 :: ── Folder exists but is not a git repo ────────────────────────
-if exist "%INSTALL_DIR%" (
-    echo [!] %INSTALL_DIR% exists but is not a git repository.
-    echo.
-    set /p "CHOICE= Initialize git and pull SyncGuard into it? (Y/N): "
-    if /i "!CHOICE!"=="Y" (
-        cd /d "%INSTALL_DIR%"
-        git init
-        git remote add origin https://github.com/HempsSA/SyncGuard.git
-        git fetch origin
-        git checkout -b main origin/main
-        goto :install_deps
-    )
+if not exist "%INSTALL_DIR%" goto :fresh_clone
+echo [!] %INSTALL_DIR% exists but is not a git repository.
+echo.
+set /p "CHOICE= Initialize git and pull SyncGuard? [Y/N]: "
+if /i not "!CHOICE!"=="Y" (
     echo [i] Skipping. Installing dependencies only.
     goto :install_deps
 )
+cd /d "%INSTALL_DIR%"
+git init
+git remote add origin https://github.com/HempsSA/SyncGuard.git
+git fetch origin
+git checkout -b main origin/main
+goto :install_deps
 
+:fresh_clone
 :: ── Fresh install — clone into a temp folder then move ─────────
 echo [v] Cloning SyncGuard repository...
 set "TEMP_CLONE=%INSTALL_DIR%_clone_%RANDOM%"
@@ -192,8 +173,6 @@ if errorlevel 1 (
     rmdir /s /q "%TEMP_CLONE%" 2>nul
     exit /b 1
 )
-
-:: Move contents from temp clone into the target directory
 mkdir "%INSTALL_DIR%" 2>nul
 xcopy "%TEMP_CLONE%\*" "%INSTALL_DIR%\" /E /Y /Q >nul
 if errorlevel 1 (
@@ -212,7 +191,7 @@ echo [v] Installing Python dependencies...
 if errorlevel 1 (
     echo.
     echo [X] Failed to install dependencies.
-    echo Try running manually: %PYTHON% -m pip install -r "%INSTALL_DIR%\requirements.txt"
+    echo Try: %PYTHON% -m pip install -r "%INSTALL_DIR%\requirements.txt"
     exit /b 1
 )
 echo.
@@ -237,7 +216,7 @@ echo   git pull origin main
 echo.
 
 :: ── Desktop shortcut ──────────────────────────────────────────
-set /p "SHORTCUT= Create Desktop shortcut? (Y/N): "
+set /p "SHORTCUT= Create Desktop shortcut? [Y/N]: "
 if /i not "!SHORTCUT!"=="Y" goto :skip_shortcut
 echo [v] Creating Desktop shortcut...
 
@@ -256,7 +235,7 @@ echo [i] Desktop shortcut created.
 :skip_shortcut
 
 echo.
-set /p "LAUNCH= Launch SyncGuard now? (Y/N): "
+set /p "LAUNCH= Launch SyncGuard now? [Y/N]: "
 if /i not "!LAUNCH!"=="Y" goto :skip_launch
 cd /d "%INSTALL_DIR%"
 start "" %PYTHONW% "SyncGuard.pyw"
