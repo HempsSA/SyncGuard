@@ -707,7 +707,7 @@ class SyncGuardApp(ctk.CTk):
             self._show_no_selection()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.bind("<Iconify>", self._on_minimize)
+        self.bind("<Unmap>", self._on_minimize)
 
         # Start maximized — need after() so the window is mapped first
         self.after(0, lambda: self.state("zoomed"))
