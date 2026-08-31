@@ -677,6 +677,7 @@ class SyncGuardApp(ctk.CTk):
         self._statuses:      dict          = {}
         self._sched_times:   List[str]     = []
         self._scanning:      set           = set()  # stable job IDs
+        self._scanning_paths: dict          = {}     # source_path -> job_name
         self._state_lock = threading.RLock()
         self._guardians:     dict          = {}
 
@@ -2289,12 +2290,21 @@ class SyncGuardApp(ctk.CTk):
                        triggered_by: str = "manual"):
         # Freeze settings for the complete run
         job = JobConfig.from_dict(job.to_dict())
+        norm_src = os.path.normpath(job.source_path)
         with self._state_lock:
             if job.job_id in self._scanning:
                 self._append_log(
                     "Job '" + job.name + "' is already running.", "WARN")
                 return
+            running_on_src = self._scanning_paths.get(norm_src)
+            if running_on_src is not None:
+                self._append_log(
+                    "Blocked: source '" + job.source_path +
+                    "' is already being scanned by job '" +
+                    running_on_src + "'.", "WARN")
+                return
             self._scanning.add(job.job_id)
+            self._scanning_paths[norm_src] = job.name
         self._set_job_status(job.name, "RUNNING")
 
         engine  = "parallel"
@@ -2384,6 +2394,7 @@ class SyncGuardApp(ctk.CTk):
             finally:
                 with self._state_lock:
                     self._scanning.discard(job.job_id)
+                    self._scanning_paths.pop(norm_src, None)
 
             # Reclaim scan objects before FreeFileSync launches
             try:
