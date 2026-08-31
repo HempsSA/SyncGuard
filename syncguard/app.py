@@ -1505,7 +1505,7 @@ class SyncGuardApp(ctk.CTk):
         self.rw_extensions = ctk.CTkTextbox(
             scroll, height=_sc(50, s), fg_color=C_CARD,
             border_color=C_BORDER, border_width=1,
-            text_color=C_TEXT, font=("Consolas", _sc(10, s)))
+            text_color=C_TEXT, font=("Consolas", _sc(11, s)))
         self.rw_extensions.pack(fill="x", pady=(_sc(4, s), 0))
 
         # Info box
