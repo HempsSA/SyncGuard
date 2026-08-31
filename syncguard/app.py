@@ -4,14 +4,12 @@ threshold override dialog, and system tray integration.
 """
 
 import os
-import sys
 import csv
 import time
 import copy
 import uuid
 import queue as _queue
 import threading
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -25,11 +23,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from .constants import (
-    APP_NAME, CONFIG_FILE, CACHE_DIR, LOG_MAX, FFS_DEFAULT,
-    C_BG, C_SURFACE, C_CARD, C_BORDER, C_ACCENT, C_BLUE, C_PURPLE,
+    APP_NAME, LOG_MAX,
+    C_BG, C_SURFACE, C_CARD, C_BORDER, C_ACCENT, C_BLUE,
     C_TEXT, C_MUTED, C_OK, C_WARN, C_ERR,
     STATUS_COLORS, STATUS_TEXT_COLORS,
-    _STARTUP_WARNINGS, diagnostic,
+    _STARTUP_WARNINGS,
 )
 from .persistence import (
     ScanCache, ScanHistory, JobConfig, JobStore,

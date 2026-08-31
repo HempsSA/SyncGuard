@@ -2,7 +2,6 @@
 SyncGuard constants — paths, colour palette, and diagnostic helpers.
 """
 
-import os
 import sys
 from pathlib import Path
 from typing import List

@@ -15,7 +15,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List, Optional
 
-from .constants import diagnostic
 from .persistence import ScanCache, JobConfig
 
 
