@@ -157,7 +157,7 @@ echo [v] Creating Desktop shortcut...
 
 :: Write PowerShell script to temp file
 >"%TEMP%\syncguard_shortcut.ps1" echo $ws = New-Object -ComObject WScript.Shell
->>"%TEMP%\syncguard_shortcut.ps1" echo $sc = $ws.CreateShortcut([System.IO.Path]::Combine([System.IO.Path]::GetFolderPath('Desktop'), 'SyncGuard.lnk'))
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc = $ws.CreateShortcut([System.IO.Path]::Combine([System.Environment]::GetFolderPath('Desktop'), 'SyncGuard.lnk'))
 >>"%TEMP%\syncguard_shortcut.ps1" echo $sc.TargetPath = '%PYTHONW%'
 >>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Arguments = '%INSTALL_DIR%\SyncGuard.pyw'
 >>"%TEMP%\syncguard_shortcut.ps1" echo $sc.WorkingDirectory = '%INSTALL_DIR%'
