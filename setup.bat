@@ -30,7 +30,7 @@ echo.
 echo [v] Downloading Git for Windows...
 set "GIT_INSTALLER=%TEMP%\git_installer.exe"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe' -OutFile '%GIT_INSTALLER%' -UseBasicParsing"
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.1/Git-2.55.0-64-bit.exe' -OutFile '%GIT_INSTALLER%' -UseBasicParsing"
 if not exist "%GIT_INSTALLER%" (
     echo [X] Download failed. Install Git manually from: https://git-scm.com/download/win
     exit /b 1
