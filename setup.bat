@@ -165,6 +165,23 @@ echo [v] Creating Desktop shortcut...
 >>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Save()
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\syncguard_shortcut.ps1"
+del "%TEMP%\syncguard_shortcut.ps1" 2>/dev/null
+echo [i] Desktop shortcut created.
+:skip_shortcut
+echo [v] Creating Desktop shortcut...
+
+:: Write PowerShell script to temp file
+>"%TEMP%\syncguard_shortcut.ps1" echo $ws = New-Object -ComObject WScript.Shell
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc = $ws.CreateShortcut([System.IO.Path]::Combine([System.Environment]::GetFolderPath('Desktop'), 'SyncGuard.lnk'))
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.IconLocation = '%INSTALL_DIR%\assets\sync_icon.ico,0'
+
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.TargetPath = '%PYTHONW%'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Arguments = '%INSTALL_DIR%\SyncGuard.pyw'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.WorkingDirectory = '%INSTALL_DIR%'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Description = 'SyncGuard - FreeFileSync Job Manager'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Save()
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\syncguard_shortcut.ps1"
 del "%TEMP%\syncguard_shortcut.ps1" 2>nul
 echo [i] Desktop shortcut created.
 :skip_shortcut
