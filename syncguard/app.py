@@ -616,6 +616,16 @@ class SyncGuardApp(ctk.CTk):
         self.title(APP_NAME + " " + __import__("syncguard").APP_VER)
         self.configure(fg_color=C_BG)
 
+        # Set window icon
+        _icon_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "assets", "icon.ico")
+        if os.path.exists(_icon_path):
+            try:
+                self.iconbitmap(_icon_path)
+            except Exception:
+                pass
+
         self.store           = JobStore()
         self.selected_index: Optional[int] = None
         self.job_rows:       List[JobRow]  = []
@@ -2480,7 +2490,18 @@ class SyncGuardApp(ctk.CTk):
     # -------------------------------------------------------------------
 
     def _build_tray_icon(self):
-        img  = self._make_tray_image()
+        # Try to load the FreeFileSync icon; fall back to generated image
+        _icon_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "assets", "icon.ico")
+        if os.path.exists(_icon_path):
+            try:
+                img = Image.open(_icon_path)
+                img.load()  # force load before file handle closes
+            except Exception:
+                img = self._make_tray_image()
+        else:
+            img = self._make_tray_image()
         menu = pystray.Menu(
             pystray.MenuItem("Show SyncGuard", self._tray_show,
                              default=True),
