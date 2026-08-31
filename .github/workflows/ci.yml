@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Syntax-check all modules
+        run: |
+          python -m py_compile syncguard/__init__.py
+          python -m py_compile syncguard/__main__.py
+          python -m py_compile syncguard/constants.py
+          python -m py_compile syncguard/persistence.py
+          python -m py_compile syncguard/scanner.py
+          python -m py_compile syncguard/guardian.py
+          python -m py_compile syncguard/app.py
+          python -m py_compile syncguard_protected.py
+          echo "All modules OK on Python ${{ matrix.python-version }}"
+
+      - name: Import-check (no GUI)
+        run: |
+          python -c "from syncguard.constants import APP_NAME; print(APP_NAME)"
+          python -c "from syncguard.persistence import JobConfig, JobStore, ScanCache, ScanHistory; print('persistence OK')"
+          python -c "from syncguard.scanner import ParallelScanner, ChangeGuard, ScanProgress; print('scanner OK')"
+        env:
+          # Prevent tkinter from trying to open a display
+          DISPLAY: ""
