@@ -16,7 +16,7 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
 
-from .constants import CONFIG_FILE, CACHE_DIR, diagnostic
+from .constants import CONFIG_FILE, CACHE_DIR, FFS_DEFAULT, diagnostic
 
 
 # ---------------------------------------------------------------------------
