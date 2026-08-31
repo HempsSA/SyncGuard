@@ -65,7 +65,10 @@ cd SyncGuard
 # Install dependencies
 pip install -r requirements.txt
 
-# Run directly
+# Run (no console window)
+pythonw SyncGuard.pyw
+
+# Or with console (for debugging)
 python syncguard_protected.py
 
 # Or as a package
@@ -73,6 +76,8 @@ python -m syncguard
 ```
 
 Dependencies (`customtkinter`, `schedule`, `pystray`, `Pillow`, `watchdog`, `psutil`) are **auto-installed on first run**.
+
+> **Tip:** Double-click `SyncGuard.pyw` to launch without a black terminal window. Use `syncguard_protected.py` if you need console output for debugging.
 
 ## Usage
 

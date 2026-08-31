@@ -49,6 +49,16 @@ echo [i] Python found: OK
 :: Show Python version
 for /f "tokens=*" %%v in ('%PYTHON% --version 2^>^&1') do set "PYVER=%%v"
 echo [i] %PYVER%
+
+:: Locate pythonw.exe (suppresses console window)
+set "PYTHONW=%PYTHON%"
+for /f "tokens=*" %%w in ('where pythonw 2^>nul') do (
+    if not defined PYTHONW set "PYTHONW=%%w"
+)
+if "%PYTHONW%"=="%PYTHON%" (
+    :: pythonw not found separately, try replacing python with pythonw
+    set "PYTHONW=%PYTHON:python=pythonw%"
+)
 echo.
 
 :: ── Check if folder already has a git repo ─────────────────────
@@ -129,23 +139,29 @@ echo ========================================
 echo.
 echo Location: %INSTALL_DIR%
 echo.
-echo To launch SyncGuard:
+echo To launch SyncGuard (no console window):
+echo   Double-click: %INSTALL_DIR%\SyncGuard.pyw
+echo.
+echo To launch with console (for debugging):
 echo   cd "%INSTALL_DIR%"
 echo   python syncguard_protected.py
-echo.
-echo   — or —
-echo.
-echo   cd "%INSTALL_DIR%"
-echo   python -m syncguard
 echo.
 echo To update later:
 echo   cd "%INSTALL_DIR%"
 echo   git pull origin main
 echo.
 
+:: ── Desktop shortcut ──────────────────────────────────────────
+set /p "SHORTCUT= Create Desktop shortcut? (Y/N): "
+if /i "!SHORTCUT!"=="Y" (
+    echo [v] Creating Desktop shortcut...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "^$ws = New-Object -ComObject WScript.Shell; ^$sc = ^$ws.CreateShortcut([System.IO.Path]::Combine([System.IO.Path]::GetFolderPath('Desktop'), 'SyncGuard.lnk')); ^$sc.TargetPath = '%PYTHONW%'; ^$sc.Arguments = '""%INSTALL_DIR%\SyncGuard.pyw""'; ^$sc.WorkingDirectory = '%INSTALL_DIR%'; ^$sc.Description = 'SyncGuard - FreeFileSync Job Manager'; ^$sc.Save()"
+    echo [i] Desktop shortcut created.
+)
+
 set /p "LAUNCH= Launch SyncGuard now? (Y/N): "
 if /i "!LAUNCH!"=="Y" (
     cd /d "%INSTALL_DIR%"
-    start "" %PYTHON% "syncguard_protected.py"
+    start "" %PYTHONW% "SyncGuard.pyw"
 )
 endlocal
