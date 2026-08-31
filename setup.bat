@@ -56,7 +56,6 @@ for /f "tokens=*" %%w in ('where pythonw 2^>nul') do (
     if not defined PYTHONW set "PYTHONW=%%w"
 )
 if "%PYTHONW%"=="%PYTHON%" (
-    :: pythonw not found separately, try replacing python with pythonw
     set "PYTHONW=%PYTHON:python=pythonw%"
 )
 echo.
@@ -153,25 +152,27 @@ echo.
 
 :: ── Desktop shortcut ──────────────────────────────────────────
 set /p "SHORTCUT= Create Desktop shortcut? (Y/N): "
-if /i "!SHORTCUT!"=="Y" (
-    echo [v] Creating Desktop shortcut...
-    >"%TEMP%\syncguard_shortcut.ps1" (
-        echo $ws = New-Object -ComObject WScript.Shell
-        echo $sc = $ws.CreateShortcut([System.IO.Path]::Combine([System.IO.Path]::GetFolderPath('Desktop'), 'SyncGuard.lnk'))
-        echo $sc.TargetPath = '%PYTHONW%'
-        echo $sc.Arguments = '""%INSTALL_DIR%\SyncGuard.pyw""'
-        echo $sc.WorkingDirectory = '%INSTALL_DIR%'
-        echo $sc.Description = 'SyncGuard - FreeFileSync Job Manager'
-        echo $sc.Save()
-    )
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\syncguard_shortcut.ps1"
-    del "%TEMP%\syncguard_shortcut.ps1" 2>nul
-    echo [i] Desktop shortcut created.
-)
+if /i not "!SHORTCUT!"=="Y" goto :skip_shortcut
+echo [v] Creating Desktop shortcut...
 
+:: Write PowerShell script to temp file
+>"%TEMP%\syncguard_shortcut.ps1" echo $ws = New-Object -ComObject WScript.Shell
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc = $ws.CreateShortcut([System.IO.Path]::Combine([System.IO.Path]::GetFolderPath('Desktop'), 'SyncGuard.lnk'))
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.TargetPath = '%PYTHONW%'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Arguments = '"'%INSTALL_DIR%\SyncGuard.pyw'"'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.WorkingDirectory = '%INSTALL_DIR%'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Description = 'SyncGuard - FreeFileSync Job Manager'
+>>"%TEMP%\syncguard_shortcut.ps1" echo $sc.Save()
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\syncguard_shortcut.ps1"
+del "%TEMP%\syncguard_shortcut.ps1" 2>nul
+echo [i] Desktop shortcut created.
+:skip_shortcut
+
+echo.
 set /p "LAUNCH= Launch SyncGuard now? (Y/N): "
-if /i "!LAUNCH!"=="Y" (
-    cd /d "%INSTALL_DIR%"
-    start "" %PYTHONW% "SyncGuard.pyw"
-)
+if /i not "!LAUNCH!"=="Y" goto :skip_launch
+cd /d "%INSTALL_DIR%"
+start "" %PYTHONW% "SyncGuard.pyw"
+:skip_launch
 endlocal
