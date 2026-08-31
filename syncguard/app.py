@@ -50,6 +50,51 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# Default exclude patterns for Windows environments
+# ---------------------------------------------------------------------------
+
+DEFAULT_EXCLUDE_PATTERNS = [
+    # Windows system
+    "System Volume Information",
+    "$Recycle.Bin",
+    "Recycle",
+    "RECYCLER",
+    # Windows temp / cache
+    "*.tmp",
+    "*.temp",
+    "~$*",
+    "Thumbs.db",
+    "desktop.ini",
+    "*.lnk",
+    # Windows update / installer cache
+    "WinSxS",
+    "SoftwareDistribution",
+    "Installer",
+    # Windows Defender / antivirus
+    "*msdownld.tmp",
+    # Windows logs
+    "*.log",
+    # Browser caches
+    "*.idx",
+    # Office lock files
+    "~*.*",
+    # macOS (if cross-syncing)
+    ".DS_Store",
+    "._*",
+    "__MACOSX",
+    # Linux (if cross-syncing)
+    ".Trash-*",
+    ".cache",
+    # Version control
+    ".git",
+    ".svn",
+    ".hg",
+    # SyncGuard internal
+    "syncguard_cache",
+]
+
+
+# ---------------------------------------------------------------------------
 # Responsive scaling
 # ---------------------------------------------------------------------------
 
@@ -1083,7 +1128,10 @@ class SyncGuardApp(ctk.CTk):
         else:
             self.enabled_sw.deselect()
         self.e_exclude.delete("1.0", "end")
-        self.e_exclude.insert("1.0", "\n".join(job.exclude_patterns))
+        if job.exclude_patterns:
+            self.e_exclude.insert("1.0", "\n".join(job.exclude_patterns))
+        else:
+            self.e_exclude.insert("1.0", "\n".join(DEFAULT_EXCLUDE_PATTERNS))
         self._sched_times = list(job.schedule_times)
         self._rebuild_sched_list()
         self._set_status_badge(self._statuses.get(job.name, "IDLE"))
