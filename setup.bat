@@ -155,7 +155,17 @@ echo.
 set /p "SHORTCUT= Create Desktop shortcut? (Y/N): "
 if /i "!SHORTCUT!"=="Y" (
     echo [v] Creating Desktop shortcut...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "^$ws = New-Object -ComObject WScript.Shell; ^$sc = ^$ws.CreateShortcut([System.IO.Path]::Combine([System.IO.Path]::GetFolderPath('Desktop'), 'SyncGuard.lnk')); ^$sc.TargetPath = '%PYTHONW%'; ^$sc.Arguments = '""%INSTALL_DIR%\SyncGuard.pyw""'; ^$sc.WorkingDirectory = '%INSTALL_DIR%'; ^$sc.Description = 'SyncGuard - FreeFileSync Job Manager'; ^$sc.Save()"
+    >"%TEMP%\syncguard_shortcut.ps1" (
+        echo $ws = New-Object -ComObject WScript.Shell
+        echo $sc = $ws.CreateShortcut([System.IO.Path]::Combine([System.IO.Path]::GetFolderPath('Desktop'), 'SyncGuard.lnk'))
+        echo $sc.TargetPath = '%PYTHONW%'
+        echo $sc.Arguments = '""%INSTALL_DIR%\SyncGuard.pyw""'
+        echo $sc.WorkingDirectory = '%INSTALL_DIR%'
+        echo $sc.Description = 'SyncGuard - FreeFileSync Job Manager'
+        echo $sc.Save()
+    )
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\syncguard_shortcut.ps1"
+    del "%TEMP%\syncguard_shortcut.ps1" 2>nul
     echo [i] Desktop shortcut created.
 )
 
