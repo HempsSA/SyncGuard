@@ -836,6 +836,9 @@ class SyncGuardApp(ctk.CTk):
              width=_sc(84, s), height=_sc(28, s)).pack(
             side="right", padx=_sc(6, s))
 
+        # Track which tab is active and which tabs need lazy loading
+        self._pending_tab_job: dict = {}   # tab_name -> JobConfig (deferred)
+
         self.tabs = ctk.CTkTabview(
             df, fg_color=C_SURFACE,
             segmented_button_fg_color=C_CARD,
@@ -844,7 +847,8 @@ class SyncGuardApp(ctk.CTk):
             segmented_button_unselected_color=C_CARD,
             segmented_button_unselected_hover_color=C_BORDER,
             text_color=C_TEXT, text_color_disabled=C_MUTED,
-            corner_radius=8)
+            corner_radius=8,
+            command=self._on_tab_change)
         self.tabs.pack(
             fill="both", expand=True,
             padx=_sc(16, s), pady=_sc(8, s))
@@ -1088,6 +1092,44 @@ class SyncGuardApp(ctk.CTk):
         self.no_sel_frame.place_forget()
         self.scan_panel.place(relx=0, rely=0, relwidth=1, relheight=1)
 
+    def _on_tab_change(self):
+        """Called by CTkTabview when the user switches tabs."""
+        tab = self.tabs.get()
+        job = self._pending_tab_job.pop(tab, None)
+        if job is not None:
+            self._load_tab_job(tab, job)
+
+    def _load_tab_job(self, tab: str, job: JobConfig):
+        """Load data for a specific tab from an in-memory JobConfig."""
+        if tab == "Guardian":
+            self._load_guardian_into_tab(job)
+        elif tab == "Ransomware":
+            self._load_ransomware_into_tab(job)
+        elif tab == "Schedule":
+            self._sched_times = list(job.schedule_times)
+            self._rebuild_sched_list()
+        elif tab == "History":
+            self._clear_history_display()
+            self._deferred_load_history(job)
+        # Config tab is always loaded in _load_job_into_form
+
+    def _deferred_load_history(self, job: JobConfig):
+        """Load history in background thread (moved from _deferred_load)."""
+        def _bg():
+            try:
+                records = ScanHistory(job.job_id).records
+            except Exception:
+                records = []
+            def _apply():
+                if (self.selected_index is None or
+                        self.store.jobs[self.selected_index].name !=
+                        job.name):
+                    return
+                self._render_history_batched(records)
+            self.after(0, _apply)
+        threading.Thread(
+            target=_bg, daemon=True, name="sg-history-load").start()
+
     def _select_job(self, index: int):
         self.selected_index = index
         for i, row in enumerate(self.job_rows):
@@ -1107,7 +1149,7 @@ class SyncGuardApp(ctk.CTk):
             80, lambda j=job: self._deferred_load(j))
 
     def _load_job_into_form(self, job: JobConfig):
-        """Fast path: only update widgets from already-in-memory data."""
+        """Fast path: update only the active tab. Others load lazily."""
         self.job_title_lbl.configure(text=job.name)
         for entry, val in [
             (self.e_name,    job.name),
@@ -1133,19 +1175,26 @@ class SyncGuardApp(ctk.CTk):
             self.e_exclude.insert("1.0", "\n".join(job.exclude_patterns))
         else:
             self.e_exclude.insert("1.0", "\n".join(DEFAULT_EXCLUDE_PATTERNS))
-        self._sched_times = list(job.schedule_times)
-        self._rebuild_sched_list()
         self._set_status_badge(self._statuses.get(job.name, "IDLE"))
         self.cache_info_lbl.configure(text="Cache: loading...")
         self.watch_info_lbl.configure(
             text="Full rescan mode  (every job run)")
-        self._clear_history_display()
-        self._load_guardian_into_tab(job)
-        self._load_ransomware_into_tab(job)
+
+        # Defer non-active tabs — load lazily when the user switches to them
+        active = self.tabs.get()
+        self._pending_tab_job.clear()
+        self._pending_tab_job["Schedule"] = job
+        self._pending_tab_job["History"] = job
+        self._pending_tab_job["Guardian"] = job
+        self._pending_tab_job["Ransomware"] = job
+        # Immediately load whatever tab is currently visible
+        if active in self._pending_tab_job:
+            self._pending_tab_job.pop(active)
+            self._load_tab_job(active, job)
 
     def _deferred_load(self, job: JobConfig):
         """
-        Runs 80ms after job selection. Offloads disk I/O to a background
+        Runs 80ms after job selection. Offloads cache I/O to a background
         thread so the main thread never blocks.
         """
         if (self.selected_index is None or
@@ -1164,26 +1213,17 @@ class SyncGuardApp(ctk.CTk):
             except Exception:
                 c_text = "Cache: unavailable"
 
-            w_text = "Full rescan mode  (every job run)"
-
-            try:
-                records = ScanHistory(job.job_id).records
-            except Exception:
-                records = []
-
             def _apply():
                 if (self.selected_index is None or
                         self.store.jobs[self.selected_index].name !=
                         job.name):
                     return
                 self.cache_info_lbl.configure(text=c_text)
-                self.watch_info_lbl.configure(text=w_text)
-                self._render_history_batched(records)
 
             self.after(0, _apply)
 
         threading.Thread(
-            target=_bg, daemon=True, name="sg-ui-load").start()
+            target=_bg, daemon=True, name="sg-cache-load").start()
 
     def _collect_job_from_form(self) -> JobConfig:
         raw_excl = self.e_exclude.get("1.0", "end").strip()
