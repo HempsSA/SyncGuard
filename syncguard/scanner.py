@@ -549,7 +549,7 @@ class ChangeGuard:
         scanner = ParallelScanner(
             root, cache, num_workers=self.job.num_workers,
             exclude_patterns=self.job.exclude_patterns,
-            progress_cb=self.progress_cb, log_cb=self._log_cb)
+            progress_cb=self.progress_cb, log_cb=self.log_cb)
         self._scanner = scanner
         if self.scanner_ready_cb is not None:
             self.scanner_ready_cb(scanner)
