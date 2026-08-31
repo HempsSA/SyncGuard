@@ -16,20 +16,91 @@ from typing import Dict, List, Optional, Set
 # ---------------------------------------------------------------------------
 
 SUSPICIOUS_EXTENSIONS: Set[str] = {
-    # Common ransomware extensions
-    ".locked", ".encrypted", ".crypto", ".enc", ".crypt", ".crypted",
-    ".crypz", ".cryt1", ".cryt2", ".cryt3",
+    # ── WannaCry / WCry family ──────────────────────────────────
     ".wnry", ".wcry", ".wncry", ".wncryt",
-    ".lockedup", ".locky", ".zepto", ".cerber", ".cerber3",
-    ".odin", ".thor", ".aesir", ".zzzzz", ".micro",
-    ".xxx", ".ttt", ".ecc", ".ezz", ".xyz", ".zzz",
-    ".abc", ".ccc", ".vvv", ".good", ".bad",
-    ".ransom", ".ransomed", ".pay", ".paym",
-    ".bip", ".dharma", ".wallet", ".arena",
-    ".coot", ".lazarus", ".maas", ".mofas",
-    ".sdjn", ".bos", ".gdb", ".makop",
-    # Generic patterns (lowercase, matched after stripping)
-    ".crypted0", ".encrypted0",
+    # ── Locky family ────────────────────────────────────────────
+    ".locky", ".zepto", ".odin", ".thor", ".aesir", ".diablo6",
+    ".ezz", ".ezz", ".cerber", ".cerber3", ".cerber5", ".cerber6",
+    ".abc", ".ccc", ".vvv", ".ttt", ".ecc", ".ezz", ".exx",
+    ".xyz", ".zzz", ".zzzzz", ".micro", ".xxx",
+    # ── Dharma / CrySIS family ───────────────────────────────────
+    ".dharma", ".wallet", ".arena", ".bip", ".cobra",
+    ".java", ".arrow", ".brrr", ".boost", ".gamma",
+    ".monro", ".brrr", ".cezar", ".bleep", ".,onion",
+    ".ETH", ".CRAB", ".DEB", ".FROZEN", ".betta",
+    ".BRRR", ".AUDIT", ".VIRS", ".LISA", ".phobos",
+    ".eking", ".eight", ".ethylamerica", ".makop",
+    ".mkp", ".decoder", ".mira", ".flavor", ".EMPRISE",
+    # ── CryptoLocker / CryptoWall family ─────────────────────────
+    ".crypt", ".crypto", ".encrypted", ".locked",
+    ".crypted", ".crypz", ".crypt1", ".crypt2", ".crypt3",
+    ".cryptolocker", ".cryptowall",
+    # ── GlobeImposter family ─────────────────────────────────────
+    ". encrypted", ". abort", ".auchentoshan", ".auodsi",
+    ".bad", ".bip", ".cod", ".cobra",
+    # ── STOP / Djvu family ───────────────────────────────────────
+    ".moia", ".ness", ".omba", ".loce", ".vawai",
+    ".boothe", ".lanset", ".kaak", ".moka",
+    ".medusa", ".stare", ".lote", ".krogu",
+    ".karl", ".wand", ".mol64", ".olgun", ".lkfr",
+    ".deria", ".masodas", ".bandar", ".tro",
+    ".gero", ".befro", ".liy0", ".nyton", ".ryeco",
+    ".liquido", ".allead", ".alcat", ".moba", ".nusm",
+    ".kyra", ".exx", ".vega", ".mogera", ".udia",
+    ".tro", ".kodg", ".zqqw", ".lecho", ".varies",
+    ".makop", ".szig", ".coharos", ".blocked",
+    # ── Conti / Ryuk / REvil family ──────────────────────────────
+    ".conti", ".ryuk", ".revil", ".sodinokibi",
+    ".rkhorse", ".rmar", ".booa", ".elbie",
+    ".devos", ".lukits", ".mekos", ".makop",
+    # ── Maze / Egregor / NetWalker ───────────────────────────────
+    ".maze", ".egregor", ".netwalker", ".cryptomix",
+    ".meow", ".meow", ".meow", ".enc",
+    # ── Avaddon ──────────────────────────────────────────────────
+    ".avdn", ".avdn", ".abensen",
+    # ── BlackCat / ALPHV ────────────────────────────────────────
+    ".blackcat", ".blackcat", ".alphv",
+    # ── LockBit family ───────────────────────────────────────────
+    ".lockbit", ".lockbit3.0", ".lockbit2",
+    # ── Hive ─────────────────────────────────────────────────────
+    ".hive", ".key", ".key.hive",
+    # ── Cl0p / Clop ──────────────────────────────────────────────
+    ".clop", ".cl0p", ".cl0p",
+    # ── Akira ────────────────────────────────────────────────────
+    ".akira",
+    # ── Phobos ───────────────────────────────────────────────────
+    ".phobos", ".eking", ".eight",
+    # ── MedusaLocker ─────────────────────────────────────────────
+    ".encrypted", ".ReadTheInstructions", ".READINSTRUCTIONS",
+    ".READINSTRUCTION", ".READINSTRUCTION.txt",
+    # ── Mount Locker / Balanced Lens ─────────────────────────────
+    ".lived", ".pazd", ".blocked",
+    # ── Maoloa /harma ────────────────────────────────────────────
+    ".maoloa", ".harma", ".loa", ".cezar",
+    # ── Magniber ─────────────────────────────────────────────────
+    ".kinopoisk", ".dodocool",
+    # ── STOP variants (additional) ──────────────────────────────
+    ".puma", ".luna", ".monro", ".sald",
+    # ── Generic / miscellaneous ransomware ───────────────────────
+    ".enc", ".ENC", ".EnCiPhErEd", ".ENCRYPTED",
+    ".cry", ".crypted", ".ransom", ".ransomed",
+    ".vault", ".cryb2", ".ctb2", ".ctbl",
+    ".crinf", ".crjoker", ".darkness", ".frtrss",
+    ".good", ".ha3", ".hydracrypt", ".kb15",
+    ".kraken", ".lechiffre", ".lockedup", ".magic",
+    ".nochance", ".omg!", ".LOL!", ".pay", ".paym",
+    ".r5a", ".rdm", ".rrk", ".sdjn", ".supercrypt",
+    ".toxcrypt", ".bos", ".gdb",
+    ".ABYSS", ".avdn", ".clop", ".conti",
+    ".dharma", ".hive", ".lockbit", ".makop",
+    ".matrix", ".MEOW", ".nightcrow", ".phobos",
+    ".ping", ".quantum", ".ryuk", ".snet",
+    ".tprc", ".unkno", ".xam",
+    ".Lukitus", ".lukits", ".bleep",
+    ".xrnt", ".xtbl",
+    # ── Numbered / zero-padded variants ──────────────────────────
+    ".0x0", ".1999", ".000", ".111", ".222", ".333",
+    ".444", ".555", ".666", ".777", ".888", ".999",
 }
 
 
