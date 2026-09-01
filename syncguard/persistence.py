@@ -16,7 +16,7 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
 
-from .constants import CONFIG_FILE, CACHE_DIR, FFS_DEFAULT, diagnostic
+from .constants import CONFIG_FILE, SETTINGS_FILE, CACHE_DIR, FFS_DEFAULT, diagnostic
 
 
 # ---------------------------------------------------------------------------
@@ -292,3 +292,53 @@ class ScanCache:
         with self._lock:
             v = self._data.get(os.path.normpath(fp))
         return float(v) if v is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Global settings (notifications, etc.)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class NotificationSettings:
+    enabled:            bool   = False
+    server:             str    = "https://ntfy.sh"
+    topic:              str    = "syncguard-alerts"
+    access_token:       str    = ""
+    notify_ok:          bool   = True
+    notify_warn:        bool   = True
+    notify_error:       bool   = True
+
+    def to_dict(self):
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d):
+        if not isinstance(d, dict):
+            return cls()
+        values = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
+        return cls(**values)
+
+
+class SettingsStore:
+    """Persists global application settings (notifications, etc.)."""
+
+    def __init__(self, path: Path = SETTINGS_FILE):
+        self.path = path
+        self.notification = NotificationSettings()
+        self._lock = threading.RLock()
+        self._load()
+
+    def _load(self):
+        raw = _load_json_with_recovery(self.path, {}, "Global settings")
+        try:
+            self.notification = NotificationSettings.from_dict(
+                raw.get("notification", {}))
+        except Exception as exc:
+            diagnostic("Settings validation failed: " + str(exc))
+            self.notification = NotificationSettings()
+
+    def save(self):
+        with self._lock:
+            _atomic_write_json(self.path, {
+                "notification": self.notification.to_dict(),
+            })

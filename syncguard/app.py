@@ -30,7 +30,7 @@ from .constants import (
     _STARTUP_WARNINGS,
 )
 from .persistence import (
-    ScanCache, ScanHistory, JobConfig, JobStore,
+    ScanCache, ScanHistory, JobConfig, JobStore, SettingsStore,
 )
 from .scanner import (
     ParallelScanner, ChangeGuard, ScanProgress,
@@ -672,6 +672,7 @@ class SyncGuardApp(ctk.CTk):
                 pass
 
         self.store           = JobStore()
+        self.settings        = SettingsStore()
         self.selected_index: Optional[int] = None
         self.job_rows:       List[JobRow]  = []
         self._statuses:      dict          = {}
@@ -863,12 +864,14 @@ class SyncGuardApp(ctk.CTk):
         self.tabs.add("History")
         self.tabs.add("Guardian")
         self.tabs.add("Ransomware")
+        self.tabs.add("Notifications")
 
         self._build_config_tab(self.tabs.tab("Config"))
         self._build_schedule_tab(self.tabs.tab("Schedule"))
         self._build_history_tab(self.tabs.tab("History"))
         self._build_guardian_tab(self.tabs.tab("Guardian"))
         self._build_ransomware_tab(self.tabs.tab("Ransomware"))
+        self._build_notifications_tab(self.tabs.tab("Notifications"))
 
     def _build_config_tab(self, tab):
         s = self._scale
@@ -1101,6 +1104,12 @@ class SyncGuardApp(ctk.CTk):
     def _on_tab_change(self):
         """Called by CTkTabview when the user switches tabs."""
         tab = self.tabs.get()
+        # Auto-save notification settings when leaving the Notifications tab
+        if hasattr(self, "ntfy_enabled_sw") and tab != "Notifications":
+            try:
+                self._save_notifications_from_tab()
+            except Exception:
+                pass
         job = self._pending_tab_job.pop(tab, None)
         if job is not None:
             self._load_tab_job(tab, job)
@@ -1632,6 +1641,256 @@ class SyncGuardApp(ctk.CTk):
             scroll, "Snapshots: none yet",
             size=_sc(10, s), color=C_MUTED)
         self.rw_snap_info.pack(anchor="w")
+
+    # -------------------------------------------------------------------
+    # Notifications tab (ntfy.sh)
+    # -------------------------------------------------------------------
+
+    def _build_notifications_tab(self, tab):
+        s = self._scale
+        tab.configure(fg_color="transparent")
+
+        scroll = ctk.CTkScrollableFrame(
+            tab, fg_color="transparent", corner_radius=0)
+        scroll.pack(fill="both", expand=True, padx=2, pady=2)
+
+        lbl_w = _sc(140, s)
+        row_h = _sc(28, s)
+        pad_y = _sc(3, s)
+
+        _label(scroll, "Push Notifications (ntfy.sh)",
+               size=_sc(12, s), weight="bold").pack(
+            anchor="w", pady=(4, 2))
+        _label(scroll,
+               ("Get push notifications when jobs finish. "
+                "Uses ntfy.sh — create a free topic at ntfy.sh."),
+               size=_sc(9, s), color=C_MUTED).pack(
+            anchor="w", pady=(0, _sc(8, s)))
+
+        # Enable toggle
+        sw_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        sw_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(sw_row, text="Enable Notifications",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.ntfy_enabled_sw = ctk.CTkSwitch(
+            sw_row, text="", progress_color=C_ACCENT,
+            button_color=C_TEXT, button_hover_color=C_MUTED)
+        self.ntfy_enabled_sw.pack(side="left")
+
+        # Server
+        srv_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        srv_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(srv_row, text="Server URL",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.ntfy_server_entry = _entry(srv_row, height=row_h)
+        self.ntfy_server_entry.pack(side="left", fill="x", expand=True)
+        self.ntfy_server_entry.insert(0, "https://ntfy.sh")
+
+        # Topic
+        topic_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        topic_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(topic_row, text="Topic",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.ntfy_topic_entry = _entry(topic_row, height=row_h)
+        self.ntfy_topic_entry.pack(side="left", fill="x", expand=True)
+
+        # Access Token
+        token_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        token_row.pack(fill="x", pady=pad_y)
+        ctk.CTkLabel(token_row, text="Access Token",
+                     width=lbl_w, anchor="w",
+                     font=(None, _sc(11, s)),
+                     text_color=C_MUTED).pack(side="left")
+        self.ntfy_token_entry = _entry(token_row, height=row_h)
+        self.ntfy_token_entry.pack(side="left", fill="x", expand=True)
+        self.ntfy_token_entry.configure(show="*")
+
+        _label(token_row,
+               "  Optional — for private/authenticated topics",
+               size=_sc(9, s), color=C_MUTED).pack(side="left")
+
+        # Status filters
+        ctk.CTkFrame(scroll, fg_color=C_BORDER, height=1).pack(
+            fill="x", pady=_sc(6, s))
+        _label(scroll, "Notify on:",
+               size=_sc(11, s), weight="bold").pack(
+            anchor="w", pady=(0, _sc(4, s)))
+
+        filter_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        filter_frame.pack(fill="x", pady=pad_y)
+
+        self.ntfy_ok_var = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            filter_frame, text="Success (OK)",
+            variable=self.ntfy_ok_var,
+            font=(None, _sc(10, s)), text_color=C_OK).pack(
+            side="left", padx=(0, _sc(16, s)))
+
+        self.ntfy_warn_var = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            filter_frame, text="Warning",
+            variable=self.ntfy_warn_var,
+            font=(None, _sc(10, s)), text_color=C_WARN).pack(
+            side="left", padx=(0, _sc(16, s)))
+
+        self.ntfy_error_var = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            filter_frame, text="Error / Aborted",
+            variable=self.ntfy_error_var,
+            font=(None, _sc(10, s)), text_color=C_ERR).pack(
+            side="left")
+
+        # Test button
+        ctk.CTkFrame(scroll, fg_color=C_BORDER, height=1).pack(
+            fill="x", pady=_sc(8, s))
+        btn_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(_sc(4, s), _sc(8, s)))
+
+        self.ntfy_test_btn = _btn(
+            btn_row, "Send Test Notification",
+            self._test_notification,
+            color=C_BLUE,
+            width=_sc(170, s), height=_sc(32, s))
+        self.ntfy_test_btn.pack(side="left")
+
+        self.ntfy_status_lbl = _label(
+            btn_row, "", size=_sc(10, s), color=C_MUTED)
+        self.ntfy_status_lbl.pack(side="left", padx=_sc(10, s))
+
+        # Info
+        _label(scroll,
+               ("Notifications are sent when any job completes. "
+                "Your access token is stored locally in "
+                "syncguard_settings.json."),
+               size=_sc(9, s), color=C_MUTED, justify="left").pack(
+            anchor="w", pady=(_sc(4, s), 0))
+
+        # Load saved settings into the form
+        self._load_notifications_into_tab()
+
+    def _load_notifications_into_tab(self):
+        """Populate the notifications tab from saved settings."""
+        ns = self.settings.notification
+        try:
+            if ns.enabled:
+                self.ntfy_enabled_sw.select()
+            else:
+                self.ntfy_enabled_sw.deselect()
+            self.ntfy_server_entry.delete(0, "end")
+            self.ntfy_server_entry.insert(0, ns.server or "https://ntfy.sh")
+            self.ntfy_topic_entry.delete(0, "end")
+            self.ntfy_topic_entry.insert(0, ns.topic)
+            self.ntfy_token_entry.delete(0, "end")
+            self.ntfy_token_entry.insert(0, ns.access_token)
+            if ns.notify_ok:
+                self.ntfy_ok_var.set(True)
+            else:
+                self.ntfy_ok_var.set(False)
+            if ns.notify_warn:
+                self.ntfy_warn_var.set(True)
+            else:
+                self.ntfy_warn_var.set(False)
+            if ns.notify_error:
+                self.ntfy_error_var.set(True)
+            else:
+                self.ntfy_error_var.set(False)
+        except Exception:
+            pass
+
+    def _save_notifications_from_tab(self):
+        """Read notification settings from the tab and persist them."""
+        from .persistence import NotificationSettings
+        self.settings.notification = NotificationSettings(
+            enabled=bool(self.ntfy_enabled_sw.get()),
+            server=self.ntfy_server_entry.get().strip() or "https://ntfy.sh",
+            topic=self.ntfy_topic_entry.get().strip(),
+            access_token=self.ntfy_token_entry.get().strip(),
+            notify_ok=bool(self.ntfy_ok_var.get()),
+            notify_warn=bool(self.ntfy_warn_var.get()),
+            notify_error=bool(self.ntfy_error_var.get()),
+        )
+        self.settings.save()
+
+    def _test_notification(self):
+        """Send a test notification to verify settings."""
+        self._save_notifications_from_tab()
+        ns = self.settings.notification
+        if not ns.topic:
+            self.ntfy_status_lbl.configure(
+                text="Enter a topic first", text_color=C_WARN)
+            return
+
+        self.ntfy_test_btn.configure(
+            state="disabled", text="Sending...",
+            fg_color=C_MUTED)
+        self.ntfy_status_lbl.configure(text="Sending...", text_color=C_MUTED)
+
+        def _send():
+            from .notifications import send_notification
+            ok = send_notification(
+                message="This is a test notification from SyncGuard.\n"
+                        "If you see this, notifications are working!",
+                topic=ns.topic,
+                title="SyncGuard — Test",
+                priority=3,
+                tags=["test"],
+                server=ns.server,
+                access_token=ns.access_token,
+            )
+            def _apply():
+                self.ntfy_test_btn.configure(
+                    state="normal", text="Send Test Notification",
+                    fg_color=C_BLUE)
+                if ok:
+                    self.ntfy_status_lbl.configure(
+                        text="\u2705 Sent successfully!", text_color=C_OK)
+                else:
+                    self.ntfy_status_lbl.configure(
+                        text="\u274c Failed — check settings",
+                        text_color=C_ERR)
+            self.after(0, _apply)
+
+        threading.Thread(
+            target=_send, daemon=True, name="sg-ntfy-test").start()
+
+    def _send_job_notification(self, job_name: str, status: str,
+                              total: int, changed: int, pct: float,
+                              duration_s: float, triggered_by: str):
+        """Send a push notification after a job completes (thread-safe)."""
+        ns = self.settings.notification
+        if not ns.enabled or not ns.topic:
+            return
+
+        def _send():
+            from .notifications import send_job_notification
+            try:
+                send_job_notification(
+                    job_name=job_name,
+                    status=status,
+                    total=total,
+                    changed=changed,
+                    pct=pct,
+                    duration_s=duration_s,
+                    triggered_by=triggered_by,
+                    topic=ns.topic,
+                    access_token=ns.access_token,
+                    server=ns.server,
+                    notify_ok=ns.notify_ok,
+                    notify_warn=ns.notify_warn,
+                    notify_error=ns.notify_error,
+                )
+            except Exception as exc:
+                self._append_log(
+                    "Notification failed: " + str(exc), "WARN")
+
+        threading.Thread(
+            target=_send, daemon=True, name="sg-ntfy-send").start()
 
     def _on_entropy(self, val):
         self.rw_entropy_lbl.configure(text=str(round(val, 1)))
@@ -2475,6 +2734,21 @@ class SyncGuardApp(ctk.CTk):
 
             self.after(0, self.scan_panel.finish)
             self._set_job_status(job.name, status)
+
+            # Send push notification
+            try:
+                self._send_job_notification(
+                    job_name=job.name,
+                    status=status,
+                    total=total,
+                    changed=changed,
+                    pct=pct,
+                    duration_s=duration,
+                    triggered_by=triggered_by,
+                )
+            except Exception as exc:
+                self._append_log(
+                    "Notification error: " + str(exc), "WARN")
 
             def _after_scan():
                 if (self.selected_index is not None and

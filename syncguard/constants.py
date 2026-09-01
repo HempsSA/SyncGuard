@@ -16,6 +16,7 @@ APP_NAME = "SyncGuard"
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE  = PROJECT_ROOT / "syncguard_jobs.json"
+SETTINGS_FILE = PROJECT_ROOT / "syncguard_settings.json"
 CACHE_DIR    = PROJECT_ROOT / "syncguard_cache"
 
 LOG_MAX   = 500   # lines kept in the activity log widget (~40 KB)
